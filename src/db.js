@@ -25,12 +25,19 @@ export function getPool() {
 export async function initDb() {
   const connectionUrl = process.env.MYSQL_URL || process.env.MYSQL_PUBLIC_URL;
 
+  console.log(
+    connectionUrl
+      ? "Connexion MySQL via MYSQL_URL..."
+      : `Connexion MySQL via variables individuelles (host=${process.env.MYSQL_HOST || "127.0.0.1"})...`
+  );
+
   pool = connectionUrl
     ? mysql.createPool({
         uri: connectionUrl,
         waitForConnections: true,
         connectionLimit: 10,
         namedPlaceholders: true,
+        connectTimeout: 10000,
       })
     : mysql.createPool({
         host: process.env.MYSQL_HOST || "127.0.0.1",
@@ -41,8 +48,10 @@ export async function initDb() {
         waitForConnections: true,
         connectionLimit: 10,
         namedPlaceholders: true,
+        connectTimeout: 10000,
       });
 
+  console.log("Création des tables...");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS notes (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -67,6 +76,7 @@ export async function initDb() {
     )
   `);
 
+  console.log("Tables prêtes, seed en cours...");
   await seedIfEmpty();
   console.log("MySQL prêt");
 }

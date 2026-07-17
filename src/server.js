@@ -41,6 +41,10 @@ async function uploadNoteImages(files) {
 app.use(cors());
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.post("/formula", async (req, res) => {
   const { top, heart, base } = req.body ?? {};
 
