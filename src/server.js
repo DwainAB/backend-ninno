@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import multer from "multer";
+import { initDb } from "./db.js";
 import { generateFormula } from "./formulaService.js";
 import { uploadImage } from "./cloudinaryService.js";
 import { getConfig, setBackgroundImageUrl, setLogoImageUrl } from "./configService.js";
@@ -143,6 +144,15 @@ app.delete("/admin/notes/:id", requireAdmin, async (req, res) => {
 });
 
 const port = process.env.PORT || 8000;
-app.listen(port, () => {
-  console.log(`ninno-backend listening on port ${port}`);
+
+async function start() {
+  await initDb();
+  app.listen(port, () => {
+    console.log(`ninno-backend listening on port ${port}`);
+  });
+}
+
+start().catch((err) => {
+  console.error("Impossible de démarrer le serveur:", err);
+  process.exit(1);
 });

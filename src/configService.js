@@ -1,38 +1,32 @@
-import { readFile, writeFile } from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+import { getPool, mapConfigRow } from "./db.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CONFIG_PATH = path.join(__dirname, "data", "config.json");
-
-let configCache = null;
-
-async function load() {
-  if (!configCache) {
-    const raw = await readFile(CONFIG_PATH, "utf-8");
-    configCache = JSON.parse(raw);
-  }
-  return configCache;
-}
-
-async function persist() {
-  await writeFile(CONFIG_PATH, JSON.stringify(configCache, null, 2));
+async function ensureConfigRow() {
+  await getPool().query(
+    `INSERT IGNORE INTO app_config (id, background_image_url, logo_image_url)
+     VALUES (1, NULL, NULL)`
+  );
 }
 
 export async function getConfig() {
-  return load();
+  await ensureConfigRow();
+  const [rows] = await getPool().query("SELECT * FROM app_config WHERE id = 1");
+  return mapConfigRow(rows[0]);
 }
 
 export async function setBackgroundImageUrl(url) {
-  await load();
-  configCache.backgroundImageUrl = url;
-  await persist();
-  return configCache;
+  await ensureConfigRow();
+  await getPool().query(
+    "UPDATE app_config SET background_image_url = :url WHERE id = 1",
+    { url }
+  );
+  return getConfig();
 }
 
 export async function setLogoImageUrl(url) {
-  await load();
-  configCache.logoImageUrl = url;
-  await persist();
-  return configCache;
+  await ensureConfigRow();
+  await getPool().query(
+    "UPDATE app_config SET logo_image_url = :url WHERE id = 1",
+    { url }
+  );
+  return getConfig();
 }

@@ -1,34 +1,22 @@
-import { readFile, writeFile } from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const NOTES_PATH = path.join(__dirname, "data", "notes.json");
-
-let notesCache = null;
-
-async function load() {
-  if (!notesCache) {
-    const raw = await readFile(NOTES_PATH, "utf-8");
-    notesCache = JSON.parse(raw);
-  }
-  return notesCache;
-}
-
-async function persist() {
-  await writeFile(NOTES_PATH, JSON.stringify(notesCache, null, 2));
-}
+import { getPool, mapNoteRow } from "./db.js";
 
 const VALID_TYPES = ["top", "heart", "base"];
-const IMAGE_FIELDS = ["imageUrl", "happyImageUrl", "sadImageUrl", "happyAnimUrl", "sadAnimUrl"];
+const IMAGE_FIELDS = {
+  imageUrl: "image_url",
+  happyImageUrl: "happy_image_url",
+  sadImageUrl: "sad_image_url",
+  happyAnimUrl: "happy_anim_url",
+  sadAnimUrl: "sad_anim_url",
+};
 
 export async function getNotes() {
-  return load();
+  const [rows] = await getPool().query(
+    "SELECT * FROM notes ORDER BY FIELD(type, 'top', 'heart', 'base'), id ASC"
+  );
+  return rows.map(mapNoteRow);
 }
 
 export async function createNote(data) {
-  await load();
-
   if (!VALID_TYPES.includes(data.type)) {
     throw new Error("type doit être 'top', 'heart' ou 'base'");
   }
@@ -36,45 +24,68 @@ export async function createNote(data) {
     throw new Error("name est requis");
   }
 
-  const nextId = notesCache.reduce((max, n) => Math.max(max, n.id), 0) + 1;
-  const note = { id: nextId, name: data.name, type: data.type };
-  for (const field of IMAGE_FIELDS) {
-    note[field] = data[field] ?? null;
-  }
+  const [result] = await getPool().query(
+    `INSERT INTO notes (
+      name, type, image_url, happy_image_url, sad_image_url, happy_anim_url, sad_anim_url
+    ) VALUES (
+      :name, :type, :imageUrl, :happyImageUrl, :sadImageUrl, :happyAnimUrl, :sadAnimUrl
+    )`,
+    {
+      name: data.name,
+      type: data.type,
+      imageUrl: data.imageUrl ?? null,
+      happyImageUrl: data.happyImageUrl ?? null,
+      sadImageUrl: data.sadImageUrl ?? null,
+      happyAnimUrl: data.happyAnimUrl ?? null,
+      sadAnimUrl: data.sadAnimUrl ?? null,
+    }
+  );
 
-  notesCache.push(note);
-  await persist();
-  return note;
+  const [rows] = await getPool().query("SELECT * FROM notes WHERE id = ?", [result.insertId]);
+  return mapNoteRow(rows[0]);
 }
 
 export async function updateNote(id, data) {
-  await load();
-  const note = notesCache.find((n) => n.id === Number(id));
-  if (!note) {
+  const pool = getPool();
+  const [existing] = await pool.query("SELECT * FROM notes WHERE id = ?", [Number(id)]);
+  if (!existing[0]) {
     throw new Error("Note introuvable");
   }
 
-  if (data.type !== undefined) {
-    if (!VALID_TYPES.includes(data.type)) {
-      throw new Error("type doit être 'top', 'heart' ou 'base'");
-    }
-    note.type = data.type;
-  }
-  if (data.name !== undefined) note.name = data.name;
-  for (const field of IMAGE_FIELDS) {
-    if (data[field] !== undefined) note[field] = data[field];
+  if (data.type !== undefined && !VALID_TYPES.includes(data.type)) {
+    throw new Error("type doit être 'top', 'heart' ou 'base'");
   }
 
-  await persist();
-  return note;
+  const sets = [];
+  const params = { id: Number(id) };
+
+  if (data.name !== undefined) {
+    sets.push("name = :name");
+    params.name = data.name;
+  }
+  if (data.type !== undefined) {
+    sets.push("type = :type");
+    params.type = data.type;
+  }
+  for (const [jsKey, column] of Object.entries(IMAGE_FIELDS)) {
+    if (data[jsKey] !== undefined) {
+      sets.push(`${column} = :${jsKey}`);
+      params[jsKey] = data[jsKey];
+    }
+  }
+
+  if (sets.length === 0) {
+    return mapNoteRow(existing[0]);
+  }
+
+  await pool.query(`UPDATE notes SET ${sets.join(", ")} WHERE id = :id`, params);
+  const [rows] = await pool.query("SELECT * FROM notes WHERE id = ?", [Number(id)]);
+  return mapNoteRow(rows[0]);
 }
 
 export async function deleteNote(id) {
-  await load();
-  const index = notesCache.findIndex((n) => n.id === Number(id));
-  if (index === -1) {
+  const [result] = await getPool().query("DELETE FROM notes WHERE id = ?", [Number(id)]);
+  if (result.affectedRows === 0) {
     throw new Error("Note introuvable");
   }
-  notesCache.splice(index, 1);
-  await persist();
 }
