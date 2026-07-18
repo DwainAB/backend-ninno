@@ -76,6 +76,13 @@ export async function initDb() {
     )
   `);
 
+  // Ensure background_other_image_url column exists
+  try {
+    await pool.query("ALTER TABLE app_config ADD COLUMN background_other_image_url TEXT NULL AFTER background_image_url");
+  } catch (err) {
+    // Column might already exist, ignore error
+  }
+
   console.log("Tables prêtes, seed en cours...");
   await seedIfEmpty();
   console.log("MySQL prêt");
@@ -114,10 +121,11 @@ async function seedIfEmpty() {
     const raw = await readFile(path.join(__dirname, "data", "config.json"), "utf-8");
     const config = JSON.parse(raw);
     await pool.query(
-      `INSERT INTO app_config (id, background_image_url, logo_image_url)
-       VALUES (1, :backgroundImageUrl, :logoImageUrl)`,
+      `INSERT INTO app_config (id, background_image_url, background_other_image_url, logo_image_url)
+       VALUES (1, :backgroundImageUrl, :backgroundOtherImageUrl, :logoImageUrl)`,
       {
         backgroundImageUrl: config.backgroundImageUrl || null,
+        backgroundOtherImageUrl: config.backgroundOtherImageUrl || null,
         logoImageUrl: config.logoImageUrl || null,
       }
     );
@@ -141,6 +149,7 @@ export function mapNoteRow(row) {
 export function mapConfigRow(row) {
   return {
     backgroundImageUrl: row.background_image_url ?? "",
+    backgroundOtherImageUrl: row.background_other_image_url ?? "",
     logoImageUrl: row.logo_image_url ?? "",
   };
 }

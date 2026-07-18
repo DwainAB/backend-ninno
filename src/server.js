@@ -5,7 +5,7 @@ import multer from "multer";
 import { initDb } from "./db.js";
 import { generateFormula } from "./formulaService.js";
 import { uploadImage } from "./cloudinaryService.js";
-import { getConfig, setBackgroundImageUrl, setLogoImageUrl } from "./configService.js";
+import { getConfig, setBackgroundImageUrl, setBackgroundOtherImageUrl, setLogoImageUrl } from "./configService.js";
 import { getNotes, createNote, updateNote, deleteNote } from "./notesService.js";
 import { requireAdmin } from "./adminAuth.js";
 
@@ -88,6 +88,20 @@ app.post("/admin/config/background", requireAdmin, upload.single("image"), async
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erreur lors de l'upload de l'image de fond" });
+  }
+});
+
+app.post("/admin/config/background/other", requireAdmin, upload.single("image"), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "image est requise" });
+  }
+  try {
+    const { url } = await uploadImage(req.file.buffer, "background_other");
+    const config = await setBackgroundOtherImageUrl(url);
+    res.json(config);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Erreur lors de l'upload de l'image de fond secondaire" });
   }
 });
 

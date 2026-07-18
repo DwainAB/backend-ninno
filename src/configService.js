@@ -22,6 +22,15 @@ export async function setBackgroundImageUrl(url) {
   return getConfig();
 }
 
+export async function setBackgroundOtherImageUrl(url) {
+  await ensureConfigRow();
+  await getPool().query(
+    "UPDATE app_config SET background_other_image_url = :url WHERE id = 1",
+    { url }
+  );
+  return getConfig();
+}
+
 export async function setLogoImageUrl(url) {
   await ensureConfigRow();
   await getPool().query(
